@@ -40,7 +40,17 @@ jobs:
           restore-keys: buildozer-
 
       - name: Build debug APK
-        run: buildozer android debug
+        env:
+          # python-for-android's internal build venv runs `pip install -U pip`,
+          # which pulls the just-released pip 25.3. pip 25.3's in-place
+          # self-upgrade corrupts its own install (mixed 25.2/25.3 modules ->
+          # ImportError: cannot import name 'BuildDependencyInstallError' /
+          # 'open_rich_spinner'). Constrain pip so that upgrade is a no-op and
+          # the venv keeps its consistent, ensurepip-seeded pip.
+          PIP_CONSTRAINT: ${{ github.workspace }}/ci-pip-constraint.txt
+        run: |
+          echo "pip<25.3" > "$GITHUB_WORKSPACE/ci-pip-constraint.txt"
+          buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
