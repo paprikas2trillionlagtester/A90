@@ -10,7 +10,7 @@ source.include_exts = py,mp3,wav,kv,png,jpg,atlas
 version = 1.0
 
 # Only Kivy needed — jnius ships automatically with the android bootstrap
-requirements = python3==3.11.9,kivy==2.3.0
+requirements = hostpython3==3.11.9,python3==3.11.9,kivy==2.3.0
 
 orientation = portrait
 fullscreen   = 1
