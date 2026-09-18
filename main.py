@@ -1,14 +1,17 @@
-# main.py — Doors-esque Android prank
+# main.py — a90 jump-scare app
 # ─────────────────────────────────────────────────────────────────────────────
 # BEHAVIOUR
-#   Open the app → it vanishes in < 0.5 s (sends itself to background).
-#   A partial wake-lock keeps the CPU alive so the timer fires.
-#   After 30-120 s the face pops up fullscreen.
-#   Touch + drag during the 3-second window → scare flash → bootloop →
-#   dead-Android robot screen → app hides again and resets.
-#   No reaction → face silently disappears → app stays hidden → repeats.
+#   Open the app → it tucks itself to the background after a moment.
+#   Sometime in the next ~minute the a90 face pops up fullscreen for 3 s.
+#   Touch the screen while he's there → scare flash + scream, then he vanishes
+#   and the app hides again and re-arms for the next pop-up.
+#   No reaction → the face silently disappears and the cycle repeats.
 #
-# SECRET EXIT  tap the four screen corners in order TL→TR→BR→BL within 5 s.
+#   This is an honest jump-scare app: it is named a90 (no disguise), it never
+#   pretends your phone is damaged, and it uninstalls like any normal app.
+#
+# EXIT  tap the four screen corners in order TL→TR→BR→BL within 5 s to stop it,
+#       or just uninstall it normally.
 # ─────────────────────────────────────────────────────────────────────────────
 
 from kivy.app    import App
@@ -42,7 +45,7 @@ if platform == 'android':
         act.startActivity(intent)
 
     def _acquire_wake_lock():
-        """Partial wake lock — keeps CPU running while screen is off."""
+        """Partial wake lock — keeps CPU running so the pop-up timer fires."""
         act  = _Activity.mActivity
         pm   = act.getSystemService(_Context.POWER_SERVICE)
         wl   = pm.newWakeLock(_PowerManager.PARTIAL_WAKE_LOCK, 'a90:wl')
@@ -57,19 +60,17 @@ else:
 
 
 # ── Tunables ──────────────────────────────────────────────────────────────────
-SCARE_DURATION = 3.0
-GRACE          = 24
-INTERVAL       = (30, 120)
+SCARE_DURATION = 3.0          # how long the face lingers before giving up
+FLASH_DURATION = 1.0          # how long the scare flash + scream lasts
+INTERVAL       = (10, 60)     # seconds until the next pop-up
 
-# Flat Doors palette — no glow
+# Flat palette — no glow
 BG_COL    = (0.05, 0.04, 0.04, 1)
 FACE_COL  = (0.15, 0.02, 0.02, 1)
 EYE_W     = (0.91, 0.90, 0.83, 1)
 EYE_P     = (0.03, 0.02, 0.02, 1)
 MOUTH_COL = (0.01, 0.01, 0.01, 1)
 LINE_COL  = (0.76, 0.07, 0.07, 1)
-ROBOT_GRAY = (0.60, 0.60, 0.60, 1)
-WARN_RED   = (0.88, 0.12, 0.12, 1)
 
 EYE_LAYOUT = [
     (-0.48,  0.55, 0.20, 0.11),
@@ -89,13 +90,9 @@ class PrankWidget(Widget):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.state          = "idle"
-        self._touch_start   = None
-        self._scare_t       = 0.0
-        self._overlay       = None
-        self._boot_cycle    = 0
-        self._flicker_count = 0
-        self._corner_seq    = []
+        self.state        = "idle"
+        self._scare_t     = 0.0
+        self._corner_seq  = []
         # prefer mp3, fall back to wav if someone swaps the file
         _snd_file = next((f for f in ("scare.mp3", "scare.wav")
                           if os.path.exists(f)), None)
@@ -115,7 +112,7 @@ class PrankWidget(Widget):
         Clock.schedule_once(self._show_face, random.uniform(*INTERVAL))
 
     def _show_face(self, *_):
-        self.state, self._touch_start, self._scare_t = "face", None, 0.0
+        self.state, self._scare_t = "face", 0.0
         _bring_to_front()                    # pop out of background
         Window.fullscreen = "auto"
         self._redraw()
@@ -138,15 +135,7 @@ class PrankWidget(Widget):
     def on_touch_down(self, touch):
         self._check_corner(touch)
         if self.state == "face":
-            self._touch_start = (touch.x, touch.y)
-        return True
-
-    def on_touch_move(self, touch):
-        if self.state == "face" and self._touch_start:
-            dx = touch.x - self._touch_start[0]
-            dy = touch.y - self._touch_start[1]
-            if math.hypot(dx, dy) > GRACE:
-                self._trigger_scare()
+            self._trigger_scare()            # touch anything → scare
         return True
 
     def _check_corner(self, touch):
@@ -185,147 +174,18 @@ class PrankWidget(Widget):
     def _scare_flash(self, dt):
         self._scare_t += dt
         self._redraw(scare=True)
-        if self._scare_t > 0.65:
+        if self._scare_t > FLASH_DURATION:
             Clock.unschedule(self._scare_flash)
-            self._show_bootloop()
+            self._end_scare()
             return False
 
-    # ── bootloop ─────────────────────────────────────────────────────────────
-
-    def _show_bootloop(self):
-        self.state, self._boot_cycle = "crash", 0
-        self._black()
-        layout = FloatLayout(size=Window.size, pos=(0, 0), opacity=0)
-        layout.add_widget(Label(
-            text="android", font_size=52,
-            color=(1, 1, 1, 0.96), italic=True,
-            size_hint=(1, None), height=80,
-            pos_hint={"center_x": 0.5, "center_y": 0.52},
-        ))
-        layout.add_widget(Label(
-            text="Powered by android", font_size=17,
-            color=(0.65, 0.65, 0.65, 0.85),
-            size_hint=(1, None), height=36,
-            pos_hint={"center_x": 0.5, "center_y": 0.42},
-        ))
-        self.add_widget(layout)
-        self._overlay = layout
-        Clock.schedule_once(self._boot_phase, 0.5)
-
-    def _boot_phase(self, *_):
-        self._boot_cycle += 1
-        if self._boot_cycle > 3:
-            Clock.schedule_once(self._show_dead_android, 0.25)
-            return
-        self._overlay.opacity = 1
-        hold = 1.6 if self._boot_cycle == 1 else 0.85
-        Clock.schedule_once(self._start_flicker, hold)
-
-    def _start_flicker(self, *_):
-        self._flicker_count = 0
-        Clock.schedule_interval(self._flicker_tick, 0.07)
-
-    def _flicker_tick(self, dt):
-        self._flicker_count += 1
-        self._overlay.opacity = 1 if self._flicker_count % 2 == 0 else 0
-        if self._flicker_count >= 9:
-            Clock.unschedule(self._flicker_tick)
-            self._overlay.opacity = 0
-            Clock.schedule_once(self._boot_phase, 0.38)
-            return False
-
-    # ── dead Android ─────────────────────────────────────────────────────────
-
-    def _show_dead_android(self, *_):
+    def _end_scare(self):
         if self._sound:
             self._sound.stop()
-        if self._overlay:
-            self.remove_widget(self._overlay)
-            self._overlay = None
-        self._draw_dead_android()
-        Clock.schedule_once(self._reset, 7.0)
-
-    def _draw_dead_android(self):
-        w, h  = Window.width, Window.height
-        cx    = w / 2
-        u     = min(w, h) * 0.075
-        robot_cy = h * 0.56
-
-        self.canvas.clear()
-        with self.canvas:
-            Color(0, 0, 0, 1)
-            Rectangle(pos=(0, 0), size=(w, h))
-
-            Color(*ROBOT_GRAY)
-
-            # antennas
-            Line(points=[cx - u*0.55, robot_cy + u*2.1,
-                         cx - u*1.05, robot_cy + u*3.0], width=max(2, u*0.22))
-            Line(points=[cx + u*0.55, robot_cy + u*2.1,
-                         cx + u*1.05, robot_cy + u*3.0], width=max(2, u*0.22))
-            Ellipse(pos=(cx - u*1.2,  robot_cy + u*2.95), size=(u*0.3, u*0.3))
-            Ellipse(pos=(cx + u*0.92, robot_cy + u*2.95), size=(u*0.3, u*0.3))
-
-            # head
-            hw, hh = u*2.6, u*1.85
-            Ellipse(pos=(cx - hw/2, robot_cy + u*0.5), size=(hw, hh))
-
-            # X eyes
-            Color(0, 0, 0, 1)
-            ex_off, ey, s = u*0.62, robot_cy + u*1.35, u*0.32
-            lw = max(2, u*0.18)
-            for ex in (cx - ex_off, cx + ex_off):
-                Line(points=[ex-s, ey-s, ex+s, ey+s], width=lw)
-                Line(points=[ex-s, ey+s, ex+s, ey-s], width=lw)
-
-            # body
-            Color(*ROBOT_GRAY)
-            bw, bh = u*2.6, u*2.6
-            bx, by = cx - bw/2, robot_cy - u*2.3
-            Rectangle(pos=(bx, by), size=(bw, bh))
-            rc = u*0.28
-            Ellipse(pos=(bx, by + bh - rc*2), size=(rc*2, rc*2))
-            Ellipse(pos=(bx + bw - rc*2, by + bh - rc*2), size=(rc*2, rc*2))
-            Rectangle(pos=(bx, by + bh - rc), size=(bw, rc))
-
-            # arms
-            aw, ah = u*0.65, u*2.0
-            arm_top = by + bh - u*0.25
-            for ax in (bx - aw - u*0.12, bx + bw + u*0.12):
-                Rectangle(pos=(ax, arm_top - ah), size=(aw, ah))
-                Ellipse(pos=(ax, arm_top - aw), size=(aw, aw))
-                Ellipse(pos=(ax, arm_top - ah), size=(aw, aw))
-
-            # legs
-            lw_leg, lh = u*0.85, u*1.8
-            gap = u*0.18
-            for lx in (cx - lw_leg - gap/2, cx + gap/2):
-                Rectangle(pos=(lx, by - lh), size=(lw_leg, lh))
-                Ellipse(pos=(lx, by - lh), size=(lw_leg, lw_leg))
-
-            # red ! on chest
-            Color(*WARN_RED)
-            Rectangle(pos=(cx - u*0.18, by + u*0.65), size=(u*0.36, u*1.05))
-            Ellipse(pos=(cx - u*0.22, by + u*0.22),   size=(u*0.44, u*0.44))
-
-    # ── reset ─────────────────────────────────────────────────────────────────
-
-    def _reset(self, *_):
-        if self._overlay:
-            self.remove_widget(self._overlay)
-            self._overlay = None
-        self.canvas.clear()
         self.state = "idle"
-        _send_to_back()                      # hide again
-        self._schedule_next()
-
-    # ── helpers ───────────────────────────────────────────────────────────────
-
-    def _black(self, *_):
         self.canvas.clear()
-        with self.canvas:
-            Color(0, 0, 0, 1)
-            Rectangle(pos=(0, 0), size=Window.size)
+        _send_to_back()                      # hide again
+        self._schedule_next()                # re-arm for the next pop-up
 
     # ── face drawing ──────────────────────────────────────────────────────────
 
@@ -385,9 +245,9 @@ class PrankApp(App):
 
     def build(self):
         Window.fullscreen = "auto"
-        self._wake_lock   = _acquire_wake_lock()   # keep CPU alive in background
+        self._wake_lock   = _acquire_wake_lock()   # keep CPU alive for the timer
         widget = PrankWidget()
-        # go to background immediately — under 0.5 s after launch
+        # tuck to background shortly after launch so the pop-up is a surprise
         Clock.schedule_once(lambda dt: _send_to_back(), 0.4)
         return widget
 
@@ -395,7 +255,7 @@ class PrankApp(App):
         return True        # keep running when Android pauses us
 
     def on_resume(self):
-        pass               # nothing special needed on resume
+        pass
 
 
 if __name__ == "__main__":

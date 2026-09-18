@@ -1,9 +1,8 @@
 [app]
 
-# Disguise name — change this to anything innocent
-title = Battery Monitor
-package.name = batterymonitor
-package.domain = com.util
+title = a90
+package.name = a90
+package.domain = org.a90
 
 source.dir = .
 source.include_exts = py,mp3,wav,kv,png,jpg,atlas
@@ -11,17 +10,14 @@ source.include_exts = py,mp3,wav,kv,png,jpg,atlas
 version = 1.0
 
 # Only Kivy needed — jnius ships automatically with the android bootstrap
-requirements = python3==3.11.6,kivy==2.3.0
+requirements = python3,kivy==2.3.0
 
 orientation = portrait
 fullscreen   = 1
 
-# Keep screen on; wake lock keeps CPU alive so timer fires in background
-android.permissions = WAKE_LOCK, RECEIVE_BOOT_COMPLETED, VIBRATE
+# Wake lock keeps the CPU alive so the pop-up timer fires while backgrounded
+android.permissions = WAKE_LOCK, VIBRATE
 android.wakelock    = True
-
-# Allow running after reboot (optional — remove if you don't want that)
-android.add_activities =
 
 android.api    = 33
 android.minapi = 26
@@ -32,12 +28,6 @@ android.archs = arm64-v8a, armeabi-v7a
 
 # Auto-accept SDK licenses — required for unattended CI builds (GitHub Actions)
 android.accept_sdk_license = True
-
-# Uncomment + fill in to sign a release APK (needed for Play Store)
-# android.keystore      = my.keystore
-# android.keystore_pass = changeme
-# android.keyalias      = mykey
-# android.keyalias_pass = changeme
 
 [buildozer]
 log_level    = 2
