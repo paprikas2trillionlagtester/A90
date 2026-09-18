@@ -50,6 +50,11 @@ jobs:
           PIP_CONSTRAINT: ${{ github.workspace }}/ci-pip-constraint.txt
         run: |
           echo "pip<25.3" > "$GITHUB_WORKSPACE/ci-pip-constraint.txt"
+          # The Android Gradle plugin requires JDK 17; the runner defaults
+          # JAVA_HOME to JDK 11. Point the build at the JDK 17 the runner ships.
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
           buildozer android debug
 
       - name: Upload APK
